@@ -6,25 +6,60 @@ import shutil
 from datetime import datetime, timezone
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.embeddings import initialize_vector_store
 
 INCOMING_DIR = settings.INCOMING_DIR
 PROCESSED_DIR = settings.PROCESSED_DIR
 
+# Initialize vector store
+vector_store = None
+
+async def get_vector_store():
+    """Get or initialize the vector store"""
+    global vector_store
+    if vector_store is None:
+        vector_store = initialize_vector_store()
+    return vector_store
+
 async def process_file(filename: str):
-    """ process each file """
+    """Process each file: read, chunk, embed, and store in vector database"""
     
     file_path = os.path.join(INCOMING_DIR, filename)
     
-    async with aiofiles.open(file_path, mode='r', encoding='utf-8', errors='replace') as f:
-        content = await f.read()
+    try:
+        async with aiofiles.open(file_path, mode='r', encoding='utf-8', errors='replace') as f:
+            content = await f.read()
         
-    # handle creation emedding and storing in vectordatbase
-    
-    
-    #  end
-    shutil.move(file_path, os.path.join(PROCESSED_DIR, filename))
-    logger.info(f"✅ Processed & moved: {filename}")
-    
+        if not content.strip():
+            logger.warning(f"Empty file: {filename}")
+            return
+            
+        # Get vector store instance
+        vs = await get_vector_store()
+        
+        # Prepare metadata
+        metadata = {
+            "filename": filename,
+            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "file_size": len(content)
+        }
+        
+        # Process content: chunk, embed, and store
+        success = await vs.process_and_store_content(
+            content=content,
+            source_file=filename,
+            metadata=metadata
+        )
+        
+        if success:
+            # Move file to processed directory only if successful
+            shutil.move(file_path, os.path.join(PROCESSED_DIR, filename))
+            logger.info(f"✅ Processed & moved: {filename}")
+        else:
+            logger.error(f"❌ Failed to process: {filename}")
+            
+    except Exception as e:
+        logger.error(f"Error processing {filename}: {str(e)}")
 
 async def process_documents():
     logger.info(f"[{datetime.now(timezone.utc)}] checking for new documents")
@@ -38,6 +73,6 @@ async def process_documents():
         logger.info("NO document find for processing")
         return 
     
-    # process all files
+    # Process all files
     await asyncio.gather(*(process_file(f) for f in files))
     

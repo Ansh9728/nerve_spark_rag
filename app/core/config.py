@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     SCHEDULER_INTERVAL_SECONDS: int = int(os.getenv('SCHEDULER_INTERVAL_SECONDS', '300'))
     SCHEDULER_ENABLED: bool = os.getenv('SCHEDULER_ENABLED', 'True').lower() in ('true', '1', 't')
     
+    # pinecone settings
+    EMBEDDING_MODEL: str = os.getenv('EMBEDDING_MODEL', 'Snowflake/snowflake-arctic-embed-s')
+    PINECONE_API_KEY: str = os.getenv('PINECONE_API_KEY')
+    PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
+    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "nerve-rag")
+    EMBEDDING_DIMENSIONS: int = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))
+    
+    # openai
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", None)
     
     class Config:
         "pydantic config"
