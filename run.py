@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from app.api.routes_ingest import ingest_router
+from app.api.routes_retrivel import retrivel_router
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import logger
@@ -50,6 +51,7 @@ app.add_middleware(
 )
 
 app.include_router(ingest_router, prefix='/ingest_api')
+app.include_router(retrivel_router, prefix='/retrivel')
 
 @app.get("/")
 async def root():

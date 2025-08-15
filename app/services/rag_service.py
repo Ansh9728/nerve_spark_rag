@@ -43,7 +43,10 @@ class RAGService:
             return 0.0
         
         # Weighted average of similarity scores
-        scores = [source.get('score', 0) for source in sources]
+        scores = []
+        for source in sources:
+            if source and isinstance(source, dict):
+                scores.append(source.get('score', 0))
         return sum(scores) / len(scores) if scores else 0.0
     
     def format_context(self, sources: List[Dict[str, Any]]) -> str:
@@ -71,7 +74,7 @@ class RAGService:
                 "tokens": 0
             }
         
-        prompt = f"""You are a helpful assistant for smart building management. 
+        prompt = f"""You are a helpful assistant. 
 Use the following context to answer the question accurately.
 
 Context:
@@ -110,7 +113,7 @@ Answer:"""
                 "tokens": 0
             }
     
-    async def query_with_context(self, query: str, top_k: int = 5) -> RAGResponse:
+    async def query_with_context(self, query: str, top_k: int = 10, rerank_top_n:int = 5) -> RAGResponse:
         """
         Main RAG query method with context-aware generation and metrics
         """
@@ -119,7 +122,9 @@ Answer:"""
         try:
             # Step 1: Retrieve relevant documents
             retrieval_start = time.time()
-            sources = self.vector_store.search_similar(query, top_k=top_k)
+            sources = self.vector_store.search_similar(query, top_k=top_k, rerank_top_n=rerank_top_n)
+            
+            
             retrieval_time = time.time() - retrieval_start
             
             # Step 2: Calculate confidence score

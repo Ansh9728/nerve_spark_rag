@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "us-east-1")
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "nerve-rag")
     EMBEDDING_DIMENSIONS: int = int(os.getenv('EMBEDDING_DIMENSIONS', '384'))
+    RERANK_MODEL: str = os.getenv('RERANK_MODEL', "bge-reranker-v2-m3")
     
     # openai
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", None)

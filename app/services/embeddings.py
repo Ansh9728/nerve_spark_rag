@@ -71,6 +71,7 @@ class StoreIntoVectorDatabase:
     def __init__(self, pinecone_index, embedding_model):
         self.pinecone_index = pinecone_index
         self.embedding_model = embedding_model
+        self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
         
         # Initialize text splitter for chunking
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -210,7 +211,7 @@ class StoreIntoVectorDatabase:
             logger.error(f"Failed to delete vectors for {source_file}: {str(e)}")
             return False
     
-    def search_similar(self, query: str, top_k: int = 5, filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def search_similar(self, query: str, top_k: int = 10, rerank_top_n: int = 5, filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
         Search for similar documents
         Args:
@@ -232,17 +233,88 @@ class StoreIntoVectorDatabase:
                 filter=filter_dict
             )
             
-            # Format results
-            formatted_results = []
-            for match in results.matches:
-                formatted_results.append({
-                    "id": match.id,
-                    "score": match.score,
-                    "content": match.metadata.get("page_content", ""),
-                    "metadata": match.metadata
-                })
+            # Check if results and matches exist
+            if not results or not hasattr(results, 'matches') or not results.matches:
+                logger.warning("No matches found in Pinecone search")
+                return []
             
-            return formatted_results
+            # Prepare docs for reranking
+            docs = []
+            for m in results.matches:
+                if m and hasattr(m, 'id') and hasattr(m, 'metadata') and m.metadata:
+                    docs.append({
+                        "id": m.id, 
+                        "text": m.metadata.get("page_content", ""),
+                        "metadata": m.metadata,
+                    })
+            
+            if not docs:
+                logger.warning("No valid documents found for reranking")
+                # Return original results without reranking
+                formatted_results = []
+                for match in results.matches:
+                    if match and hasattr(match, 'metadata') and match.metadata:
+                        formatted_results.append({
+                            "id": match.id,
+                            "score": match.score if hasattr(match, 'score') else 0.0,
+                            "content": match.metadata.get("page_content", ""),
+                            "metadata": match.metadata
+                        })
+                return formatted_results
+            
+            # rerank result documents
+            try:
+                rerank = self.pc.inference.rerank(
+                    model=settings.RERANK_MODEL,
+                    query=query,
+                    documents=docs,
+                    top_n=min(rerank_top_n, len(docs)),
+                    return_documents=True,
+                    parameters={"truncate": "END"}
+                )
+
+                
+                # Check if rerank results exist
+                if not rerank or not hasattr(rerank, 'data') or not rerank.data:
+                    logger.warning("No rerank results returned")
+                    # Return original results without reranking
+                    formatted_results = []
+                    for match in results.matches:
+                        if match and hasattr(match, 'metadata') and match.metadata:
+                            formatted_results.append({
+                                "id": match.id,
+                                "score": match.score if hasattr(match, 'score') else 0.0,
+                                "content": match.metadata.get("page_content", ""),
+                                "metadata": match.metadata
+                            })
+                    return formatted_results
+                
+                # Format reranked results
+                formatted_results = []
+                for match in rerank.data:
+                    if match and hasattr(match, 'document') and match.document:
+                        formatted_results.append({
+                            "id": match.document.id if hasattr(match.document, 'id') else "",
+                            "score": match.score if hasattr(match, 'score') else 0.0,
+                            "content": match.document.text if hasattr(match.document, 'text') else "",
+                            "metadata": match.document.metadata
+                        })
+                
+                return formatted_results
+                
+            except Exception as rerank_error:
+                logger.warning(f"Reranking failed: {str(rerank_error)}, returning original results")
+                # Return original results if reranking fails
+                formatted_results = []
+                for match in results.matches:
+                    if match and hasattr(match, 'metadata') and match.metadata:
+                        formatted_results.append({
+                            "id": match.id,
+                            "score": match.score if hasattr(match, 'score') else 0.0,
+                            "content": match.metadata.get("page_content", ""),
+                            "metadata": match.metadata
+                        })
+                return formatted_results
             
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
