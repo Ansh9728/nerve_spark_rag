@@ -51,7 +51,7 @@ app.add_middleware(
 )
 
 app.include_router(ingest_router, prefix='/ingest_api')
-app.include_router(retrivel_router, prefix='/retrivel')
+app.include_router(retrivel_router, prefix='/retrivel_api')
 
 @app.get("/")
 async def root():

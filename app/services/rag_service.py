@@ -158,6 +158,7 @@ class RAGService:
             retrieval_start = time.time()
             sources = self.vector_store.search_similar(query, top_k=top_k, rerank_top_n=rerank_top_n)
             
+            # logger.info(f"sources : {sources}")
             
             retrieval_time = time.time() - retrieval_start
             
