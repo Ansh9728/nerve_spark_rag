@@ -14,8 +14,8 @@ from app.core.scheduler import scheduler
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events."""
     # Startup
-    logger.info("Initializing database connection...")
-    await postgres_db.connect()
+    # logger.info("Initializing database connection...")
+    # await postgres_db.connect()
     
     # Start the document scheduler if enabled
     
@@ -31,8 +31,8 @@ async def lifespan(app: FastAPI):
     logger.info("Stopping document scheduler...")
     await scheduler.stop()
     
-    logger.info("closing the database connection")
-    await postgres_db.close()
+    # logger.info("closing the database connection")
+    # await postgres_db.close()
 
 
 app = FastAPI(
