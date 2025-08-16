@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "7777"))
 
     # Database settings
-    DATABASE_URI: str = os.getenv("DATABASE_URI")
+    # DATABASE_URI: str = os.getenv("DATABASE_URI")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
