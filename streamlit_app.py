@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 from app.core.config import settings
 import requests
 import pandas as pd
@@ -47,7 +48,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Configuration
-API_BASE_URL = f"http://{settings.HOST}:{settings.PORT}"
+# API_BASE_URL = f"http://{settings.HOST}:{settings.PORT}"
+API_BASE_URL = settings.API_BASE_URL
 
 class RAGClient:
     def __init__(self, base_url: str):

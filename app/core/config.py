@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     # openai
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", None)
+    
+    #streammlit app
+    API_BASE_URL: str = os.getenv("API_BASE_URL", f"http://{os.getenv('HOST')}:{int(os.getenv('PORT', '7777'))}")
 
     class Config:
         "pydantic config"
