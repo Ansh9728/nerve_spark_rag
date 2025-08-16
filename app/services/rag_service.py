@@ -21,6 +21,7 @@ class RAGResponse:
     total_tokens: int
     metrics: Dict[str, Any]
 
+
 class RAGService:
     def __init__(self):
         self.vector_store = None
@@ -73,22 +74,53 @@ class RAGService:
                 "answer": "OpenAI API not configured. Please provide context manually.",
                 "tokens": 0
             }
-        
-        prompt = f"""You are a helpful assistant. 
-Use the following context to answer the question accurately.
+            
+        prompt = f"""You are a question-answering system. 
+        Use ONLY the provided context to answer the question. 
 
-Context:
-{context}
+        If the answer is not present in the context, respond with:
+        "⚠️ The answer is not present in the knowledge base."
 
-Question: {query}
+        Context:
+        {context}
 
-Instructions:
-- Provide accurate, helpful responses based on the given context
-- If the context doesn't contain relevant information, say so
-- Be concise but comprehensive
-- Include specific details from the sources when relevant
+        Question:
+        {query}
 
-Answer:"""
+        Instructions:
+        - Base your answer strictly on the given context.
+        - Do not add external knowledge or assumptions.
+        - Be concise and accurate.
+        - If multiple relevant parts exist, summarize them clearly.
+        - If no relevant details exist, state the answer is not present in the knowledge base.
+
+        Answer:
+        """
+
+
+        # prompt = f"""You are a specialized assistant for smart building management. 
+        # You answer questions only using the provided context. If the context does not 
+        # contain the answer, explicitly respond with:
+
+        # "⚠️ The answer is not present in the knowledge base."
+
+        # Context (from building documents, IoT logs, and manuals):
+        # {context}
+
+        # User Question:
+        # {query}
+
+        # Guidelines:
+        # - ONLY use the given context to answer.
+        # - If no relevant details exist in the context, say the answer is not present in the knowledge base.
+        # - Be precise, concise, and technical when needed.
+        # - If multiple sources give overlapping information, summarize consistently.
+        # - If relevant, point to the source (e.g., 'from maintenance manual', 'from sensor logs').
+        # - Avoid speculation or adding extra knowledge outside the given context.
+
+        # Answer:
+        # """
+
 
         try:
             response = self.openai_client.chat.completions.create(
@@ -100,6 +132,8 @@ Answer:"""
                 max_completion_tokens=500,
                 # temperature=0.7
             )
+            
+            logger.info(f"OpenAI Response : {response}")
             
             return {
                 "answer": response.choices[0].message.content,
