@@ -49,7 +49,8 @@ st.markdown("""
 
 # API Configuration
 # API_BASE_URL = f"http://{settings.HOST}:{settings.PORT}"
-API_BASE_URL = settings.API_BASE_URL
+# API_BASE_URL = settings.API_BASE_URL
+API_BASE_URL = "http://localhost:7777"
 
 class RAGClient:
     def __init__(self, base_url: str):

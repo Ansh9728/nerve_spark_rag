@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     PORT: int = int(os.getenv("PORT", "7777"))
 
     # Database settings
-    DATABASE_URI: str = os.getenv("DATABASE_URI", "")
+    # DATABASE_URI: str = os.getenv("DATABASE_URI", "")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
@@ -50,7 +50,11 @@ class Settings(BaseSettings):
     RERANK_MODEL: str = os.getenv("RERANK_MODEL", "bge-reranker-v2-m3")
 
     # openai
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", None)
+    # OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", None)
+
+    OLLAMA_HOST: str = "http://localhost:11434"
+    OLLAMA_DEFAULT_MODEL: str = "smollm:135m"
+    OLLAMA_TIMEOUT: int = 120
     
     #streammlit app
     API_BASE_URL: str = os.getenv("API_BASE_URL", f"http://{os.getenv('HOST')}:{int(os.getenv('PORT', '7777'))}")

@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import logger
 from contextlib import asynccontextmanager
-from app.core.database import postgres_db
+# from app.core.database import postgres_db
 from app.core.scheduler import scheduler
 
 
