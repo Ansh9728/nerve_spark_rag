@@ -25,7 +25,10 @@ async def get_vector_store():
 
 
 async def process_document_with_langchain(file_path: str, filename: str) -> bool:
-    """Process document using LangChain loaders based on file type."""
+    """Process document using LangChain loaders based on file type.
+
+    Returns True if at least one page produced embeddings, False otherwise.
+    """
     try:
         # Load document using appropriate LangChain loader
         documents = DocumentProcessor.load_document(file_path)
@@ -40,6 +43,11 @@ async def process_document_with_langchain(file_path: str, filename: str) -> bool
         # Process each document (page/chunk) separately
         success_count = 0
         for idx, doc in enumerate(documents):
+            # skip pages with no text
+            if not doc.page_content or not doc.page_content.strip():
+                logger.warning(f"Empty page content for {filename} page {idx + 1}, skipping")
+                continue
+
             # Prepare metadata combining file info and document metadata
             metadata = {
                 "filename": filename,
@@ -69,8 +77,11 @@ async def process_document_with_langchain(file_path: str, filename: str) -> bool
         return False
 
 
-async def process_file_legacy(filename: str):
-    """Legacy processing for plain text files (backward compatibility)."""
+async def process_file_legacy(filename: str) -> bool:
+    """Legacy processing for plain text files (backward compatibility).
+
+    Returns True if processing succeeded, False otherwise.
+    """
     file_path = os.path.join(INCOMING_DIR, filename)
     
     try:
@@ -80,7 +91,7 @@ async def process_file_legacy(filename: str):
         
         if not content.strip():
             logger.warning(f"Empty file: {filename}")
-            return
+            return False
             
         # Get vector store instance
         vs = await get_vector_store()
@@ -104,11 +115,14 @@ async def process_file_legacy(filename: str):
             # Move file to processed directory only if successful
             shutil.move(file_path, os.path.join(PROCESSED_DIR, filename))
             logger.info(f"✅ Processed & moved: {filename}")
+            return True
         else:
             logger.error(f"❌ Failed to process: {filename}")
+            return False
             
     except Exception as e:
         logger.error(f"Error processing {filename}: {str(e)}")
+        return False
 
 
 async def process_file(filename: str):
@@ -125,8 +139,7 @@ async def process_file(filename: str):
     else:
         # Fall back to legacy text processing
         logger.info(f"Using legacy processing for: {filename}")
-        await process_file_legacy(filename)
-        return
+        success = await process_file_legacy(filename)
     
     if success:
         # Move file to processed directory only if successful
@@ -137,6 +150,8 @@ async def process_file(filename: str):
             logger.error(f"Failed to move file {filename}: {str(e)}")
     else:
         logger.error(f"❌ Failed to process: {filename}")
+    
+    return success
 
 
 async def process_documents():
@@ -155,5 +170,10 @@ async def process_documents():
     supported_extensions = DocumentProcessor.get_supported_extensions()
     logger.info(f"Supported file types: {supported_extensions}")
     
-    # Process all files
-    await asyncio.gather(*(process_file(f) for f in files))
+    # Process all files and record statuses
+    results = await asyncio.gather(*(process_file(f) for f in files))
+    for fname, status in zip(files, results):
+        if status:
+            logger.info(f"{fname}: processed successfully")
+        else:
+            logger.warning(f"{fname}: processing failed or no embeddings generated")

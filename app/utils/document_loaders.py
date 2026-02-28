@@ -36,21 +36,36 @@ class DocumentProcessor:
     
     @staticmethod
     def load_pdf(file_path: str) -> List[Document]:
-        """Load PDF documents using PyPDFLoader."""
+        """Load PDF documents using PyPDFLoader.
+
+        Pages that contain no extracted text are dropped.  This prevents later
+        processing from trying to split/embed empty strings (which results in
+        "No chunks created" warnings).
+        """
         try:
             loader = PyPDFLoader(file_path)
             documents = loader.load()
             
-            # Add file metadata
+            # Add file metadata and filter blank pages
+            cleaned = []
+            blank_count = 0
             for doc in documents:
+                # note: page_content might be None or empty string
+                content = doc.page_content or ""
+                if not content.strip():
+                    blank_count += 1
+                    continue
                 doc.metadata.update({
                     "file_type": "pdf",
                     "source_file": os.path.basename(file_path),
                     "file_path": file_path
                 })
+                cleaned.append(doc)
             
-            logger.info(f"Loaded {len(documents)} pages from PDF: {file_path}")
-            return documents
+            if blank_count > 0:
+                logger.warning(f"{blank_count} blank page(s) removed from PDF: {file_path}")
+            logger.info(f"Loaded {len(cleaned)} nonempty page(s) from PDF: {file_path}")
+            return cleaned
             
         except Exception as e:
             logger.error(f"Error loading PDF {file_path}: {str(e)}")
