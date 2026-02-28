@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger
 from app.services.embeddings import initialize_vector_store
 from app.utils.document_loaders import DocumentProcessor
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 INCOMING_DIR = settings.INCOMING_DIR
 PROCESSED_DIR = settings.PROCESSED_DIR

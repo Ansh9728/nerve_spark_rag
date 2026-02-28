@@ -8,6 +8,7 @@ from app.core.logging import logger
 from contextlib import asynccontextmanager
 # from app.core.database import postgres_db
 from app.core.scheduler import scheduler
+from app.services.advanced_rag_service import advanced_rag_service
 
 
 @asynccontextmanager
@@ -16,6 +17,11 @@ async def lifespan(app: FastAPI):
     # Startup
     # logger.info("Initializing database connection...")
     # await postgres_db.connect()
+
+    # Initialize RAG system ONCE
+    logger.info("Initializing Advanced RAG service...")
+    await advanced_rag_service.initialize()
+    logger.info("Advanced RAG service initialized successfully")
     
     # Start the document scheduler if enabled
     

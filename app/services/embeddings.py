@@ -1,32 +1,59 @@
 import os
 import uuid
+import asyncio
 from typing import List, Dict, Any, Optional
 from app.core.logging import logger
 from langchain_huggingface import HuggingFaceEmbeddings
 from app.core.config import settings
 from pinecone import Pinecone, ServerlessSpec
 import time
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 import hashlib
 
+# def get_embedding_model(model_name="Snowflake/snowflake-arctic-embed-s"):
+#     """
+#     Returns an embedding model for encoding text into vector embeddings using HuggingFace models.
+#     Args:
+#         model_name (str, optional): The name of the HuggingFace model to be used for generating embeddings. 
+#         Defaults to "Snowflake/snowflake-arctic-embed-s".
+#     Returns:
+#         HuggingFaceEmbeddings: An embedding model with normalized embeddings enabled for cosine similarity computation.
+#     """
+#     encode_kwargs = {'normalize_embeddings': True} # set True to compute cosine similarity
+
+#     base_embedding_model = HuggingFaceEmbeddings(
+#         model_name=model_name,
+#         encode_kwargs=encode_kwargs,
+#         model_kwargs={"device": "cpu"}  # 🔥 FORCE CPU
+#     )
+
+#     return base_embedding_model
+
+
+# ==============================
+# EMBEDDING MODEL (Singleton)
+# ==============================
+
+_embedding_model = None
+
+
 def get_embedding_model(model_name="Snowflake/snowflake-arctic-embed-s"):
-    """
-    Returns an embedding model for encoding text into vector embeddings using HuggingFace models.
-    Args:
-        model_name (str, optional): The name of the HuggingFace model to be used for generating embeddings. 
-        Defaults to "Snowflake/snowflake-arctic-embed-s".
-    Returns:
-        HuggingFaceEmbeddings: An embedding model with normalized embeddings enabled for cosine similarity computation.
-    """
-    encode_kwargs = {'normalize_embeddings': True} # set True to compute cosine similarity
+    global _embedding_model
 
-    base_embedding_model = HuggingFaceEmbeddings(
-        model_name=model_name,
-        encode_kwargs=encode_kwargs
-    )
+    if _embedding_model is None:
+        encode_kwargs = {"normalize_embeddings": True}
 
-    return base_embedding_model
+        _embedding_model = HuggingFaceEmbeddings(
+            model_name=model_name,
+            encode_kwargs=encode_kwargs,
+            model_kwargs={"device": "cpu"}  # change to "cuda" if GPU
+        )
+
+        logger.info("Embedding model loaded once (singleton)")
+
+    return _embedding_model
+
 
 
 # setup pinecone
@@ -53,7 +80,7 @@ def setup_pinecone():
             )
             
             while not pc.describe_index(settings.PINECONE_INDEX_NAME).status['ready']:
-                time.sleep(1)
+                asyncio.sleep(1)
             
             logger.info(f"Index {settings.PINECONE_INDEX_NAME} created successfully")
         
@@ -62,6 +89,8 @@ def setup_pinecone():
         logger.info(f"Connected to index: {settings.PINECONE_INDEX_NAME}")
         
         return index
+    
+
     except Exception as e:
         logger.error(f"Failed to setup Pinecone: {str(e)}")
         raise
@@ -75,8 +104,8 @@ class StoreIntoVectorDatabase:
         
         # Initialize text splitter for chunking
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1100,
-            chunk_overlap=220,
+            chunk_size=800,
+            chunk_overlap=100,
             length_function=len,
             separators=["\n\n", "\n", " ", ""]
         )
@@ -137,7 +166,12 @@ class StoreIntoVectorDatabase:
             
             # Generate embeddings
             logger.info(f"Generating embeddings for {len(texts)} chunks...")
-            embeddings = self.embedding_model.embed_documents(texts)
+            # embeddings = self.embedding_model.embed_documents(texts)
+             # 🔥 CPU heavy → run in thread
+            embeddings = await asyncio.to_thread(
+                self.embedding_model.embed_documents,
+                texts
+            )
             
             # Prepare vectors for Pinecone
             vectors = []
@@ -151,7 +185,12 @@ class StoreIntoVectorDatabase:
             
             # Store in Pinecone
             logger.info(f"Storing {len(vectors)} vectors in Pinecone...")
-            self.pinecone_index.upsert(vectors=vectors)
+            # self.pinecone_index.upsert(vectors=vectors)
+             # 🔥 Pinecone upsert in thread
+            await asyncio.to_thread(
+                self.pinecone_index.upsert,
+                vectors=vectors
+            )
             
             logger.info(f"Successfully stored {len(vectors)} embeddings in Pinecone")
             return True
@@ -192,6 +231,7 @@ class StoreIntoVectorDatabase:
             logger.error(f"Error in process_and_store_content: {str(e)}")
             return False
     
+
     async def delete_by_source(self, source_file: str) -> bool:
         """
         Delete all vectors associated with a source file
@@ -200,18 +240,32 @@ class StoreIntoVectorDatabase:
         Returns:
             bool: Success status
         """
+        # try:
+        #     # Delete vectors with matching source_file in metadata
+        #     self.pinecone_index.delete(
+        #         filter={"source_file": {"$eq": source_file}}
+        #     )
+        #     logger.info(f"Deleted all vectors for source: {source_file}")
+        #     return True
+        # except Exception as e:
+        #     logger.error(f"Failed to delete vectors for {source_file}: {str(e)}")
+        #     return False
+
         try:
-            # Delete vectors with matching source_file in metadata
-            self.pinecone_index.delete(
+            await asyncio.to_thread(
+                self.pinecone_index.delete,
                 filter={"source_file": {"$eq": source_file}}
             )
-            logger.info(f"Deleted all vectors for source: {source_file}")
+
+            logger.info(f"Deleted vectors for {source_file}")
             return True
+
         except Exception as e:
-            logger.error(f"Failed to delete vectors for {source_file}: {str(e)}")
+            logger.error(f"Delete failed: {str(e)}")
             return False
+        
     
-    def search_similar(self, query: str, top_k: int = 10, rerank_top_n: int = 5, filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    async def search_similar(self, query: str, top_k: int = 10, rerank_top_n: int = 5, filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
         Search for similar documents
         Args:
@@ -223,10 +277,22 @@ class StoreIntoVectorDatabase:
         """
         try:
             # Generate query embedding
-            query_embedding = self.embedding_model.embed_query(query)
+            # query_embedding = self.embedding_model.embed_query(query)
+            query_embedding = await asyncio.to_thread(
+                self.embedding_model.embed_query, query
+            )
             
             # Search in Pinecone
-            results = self.pinecone_index.query(
+            # results = self.pinecone_index.query(
+            #     vector=query_embedding,
+            #     top_k=top_k,
+            #     include_metadata=True,
+            #     filter=filter_dict
+            # )
+
+            # 🔥 Pinecone query → thread
+            results = await asyncio.to_thread(
+                self.pinecone_index.query,
                 vector=query_embedding,
                 top_k=top_k,
                 include_metadata=True,
@@ -264,7 +330,17 @@ class StoreIntoVectorDatabase:
             
             # rerank result documents
             try:
-                rerank = self.pc.inference.rerank(
+                # rerank = self.pc.inference.rerank(
+                #     model=settings.RERANK_MODEL,
+                #     query=query,
+                #     documents=docs,
+                #     top_n=min(rerank_top_n, len(docs)),
+                #     return_documents=True,
+                #     parameters={"truncate": "END"}
+                # )
+
+                rerank = await asyncio.to_thread(
+                    self.pc.inference.rerank,
                     model=settings.RERANK_MODEL,
                     query=query,
                     documents=docs,

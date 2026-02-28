@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import JSONResponse
-from app.services.rag_service import rag_service, RAGResponse
+from app.services.advanced_rag_service import advanced_rag_service, RAGResponse
 from app.services.embeddings import initialize_vector_store
 from fastapi.encoders import jsonable_encoder
 
@@ -19,7 +19,8 @@ async def similar_docs(
 ):
     """Get similar documents based on vector similarity"""
     try:
-        vector_store = initialize_vector_store()
+        # vector_store = initialize_vector_store()
+        vector_store = advanced_rag_service.vector_store
         results = vector_store.search_similar(
             query=query, top_k=top_k, rerank_top_n=rerank_top_n
         )
@@ -55,10 +56,10 @@ async def query_with_context(
     """
     try:
         # Initialize RAG service if not already done
-        await rag_service.initialize()
+        # await advanced_rag_service.initialize()
 
         # Get context-aware response
-        response = await rag_service.query_with_context(query=query, top_k=top_k)
+        response = await advanced_rag_service.query_with_context(query=query, top_k=top_k, rerank_top_n=rerank_top_n)
 
         result = {
             "query": query,

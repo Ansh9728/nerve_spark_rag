@@ -104,6 +104,7 @@ if page == "Query Interface":
             rerank_top_n = st.slider("Rerank Top N", 1, 8, 3)
         with col_params2:
             include_sources = st.checkbox("Include Sources", value=True)
+            # use_advanced_rag = st.checkbox("Use Advanced RAG", value=False, help="Enable document grading, query rewriting, and hallucination detection")
 
         if st.button("🚀 Submit Query", type="primary"):
             if query:
@@ -112,7 +113,8 @@ if page == "Query Interface":
                         "query": query,
                         "top_k": top_k,
                         "rerank_top_n": rerank_top_n,
-                        "include_sources": include_sources
+                        "include_sources": include_sources,
+                        # "use_advanced_rag": use_advanced_rag
                     }
                     response = client.get("/retrivel_api/query", params=params)
 
