@@ -11,7 +11,7 @@ from langchain_community.document_loaders import (
     UnstructuredWordDocumentLoader,
     UnstructuredExcelLoader
 )
-from langchain.schema import Document
+from langchain_core.documents import Document
 from app.core.logging import logger
 
 class DocumentProcessor:
