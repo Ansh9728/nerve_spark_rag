@@ -664,36 +664,57 @@ class PineconeRetriever(BaseRetriever):
 # LLM SINGLETON
 # -------------------------
 
+
 def get_llm_model():
     global _llm_singleton
 
     if _llm_singleton:
         return _llm_singleton
 
-    _llm_singleton = ChatOllama(
-        temperature=0,
-        model=settings.OLLAMA_DEFAULT_MODEL,
-        base_url=getattr(settings, 'OLLAMA_HOST', 'http://localhost:11434'),
-        timeout=60,
-        # num_predict=300
-    )
+    try:
+        # Attempt to initialize Groq model
+        if settings.GROQ_API_KEY and settings.GROQ_MODEL_NAME:
+            _llm_singleton = ChatGroq(
+                groq_api_key=settings.GROQ_API_KEY,
+                model_name=settings.GROQ_MODEL_NAME,
+                temperature=0,
+                max_tokens=2048,
+            )
+            logger.info("Using Groq model.")
+        
+        # Attempt to initialize OpenAI model
+        elif settings.OPENAI_API_KEY:
+            _llm_singleton = ChatOpenAI(
+                api_key=settings.OPENAI_API_KEY,
+                model="gpt-4o-mini",  # fastest + cheapest
+                temperature=0,
+                max_tokens=2048,
+            )
+            logger.info("Using OpenAI model.")
+        
+        # Default to Ollama if no other models are available
+        elif settings.OLLAMA_DEFAULT_MODEL:
+            _llm_singleton = ChatOllama(
+                temperature=0,
+                model=settings.OLLAMA_DEFAULT_MODEL,
+                base_url=getattr(settings, 'OLLAMA_HOST', 'http://localhost:11434'),
+                timeout=60,
+            )
+            logger.info("Using Ollama model.")
 
-    # _llm_singleton = ChatGroq(
-    #     groq_api_key=settings.GROQ_API_KEY,  # or os.getenv("GROQ_API_KEY")
-    #     model_name=settings.GROQ_MODEL_NAME,
-    #     temperature=0,
-    #     max_tokens=2048,
-    # )
+        else:
+            logger.error("No valid configuration found for any LLM model.")
+            raise ValueError("No valid LLM configuration found.")
 
-    # _llm_singleton = ChatOpenAI(
-    #     api_key=settings.OPENAI_API_KEY,
-    #     model="gpt-4o-mini",  # fastest + cheapest
-    #     temperature=0,
-    #     max_tokens=2048,
-    # )
-
+    except Exception as e:
+        logger.error(f"Failed to initialize LLM model: {str(e)}")
+        _llm_singleton = None  # Reset to None to allow reinitialization later
 
     return _llm_singleton
+
+# -------------------------
+# LLM SINGLETON
+# -------------------------
 
 
 # -------------------------

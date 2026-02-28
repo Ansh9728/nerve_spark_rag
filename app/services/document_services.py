@@ -39,25 +39,31 @@ class DocumentService:
             raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
     
     async def process_uploaded_file(self, filename: str) -> Dict[str, Any]:
-        """Process a single uploaded file and create embeddings."""
+        """Process a single uploaded file and create embeddings.
+
+        Returns a dictionary containing processing status; raises HTTPException on
+        failure so that callers (e.g. upload endpoints) can report errors to users.
+        """
+        # process_file now returns a boolean indicating success
         try:
-            await process_file(filename)
+            success = await process_file(filename)
+            if not success:
+                # treat as error so client knows
+                raise RuntimeError("No embeddings were generated (empty or unreadable document)")
+
             logger.info(f"Embeddings created successfully for: {filename}")
-            
             return {
                 "filename": filename,
                 "status": "success",
                 "message": "File processed successfully"
             }
-            
+
         except Exception as e:
             logger.error(f"Error processing file {filename}: {str(e)}")
-            
             # Clean up failed file
             file_path = self.incoming_dir / filename
             if file_path.exists():
                 file_path.unlink()
-                
             raise HTTPException(
                 status_code=500,
                 detail=f"File uploaded but processing failed: {str(e)}"

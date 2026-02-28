@@ -35,24 +35,55 @@ import hashlib
 # EMBEDDING MODEL (Singleton)
 # ==============================
 
-_embedding_model = None
+# _embedding_model = None
 
 
-def get_embedding_model(model_name="Snowflake/snowflake-arctic-embed-s"):
-    global _embedding_model
+# def get_embedding_model(model_name="Snowflake/snowflake-arctic-embed-s"):
+#     global _embedding_model
 
-    if _embedding_model is None:
-        encode_kwargs = {"normalize_embeddings": True}
+#     if _embedding_model is None:
+#         encode_kwargs = {"normalize_embeddings": True}
 
-        _embedding_model = HuggingFaceEmbeddings(
-            model_name=model_name,
-            encode_kwargs=encode_kwargs,
-            model_kwargs={"device": "cpu"}  # change to "cuda" if GPU
-        )
+#         _embedding_model = HuggingFaceEmbeddings(
+#             model_name=model_name,
+#             encode_kwargs=encode_kwargs,
+#             model_kwargs={"device": "cpu"}  # change to "cuda" if GPU
+#         )
 
-        logger.info("Embedding model loaded once (singleton)")
+#         logger.info("Embedding model loaded once (singleton)")
 
-    return _embedding_model
+#     return _embedding_model
+
+class EmbeddingService:
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self._embedding_model = None
+
+    def get_embedding_model(self):
+        """Lazily load and return a HuggingFace embedding model.
+
+        If required packages are missing or incompatible this method will log
+        a helpful message and re-raise the exception so the caller can handle
+        it during service initialization.
+        """
+        if self._embedding_model is None:
+            try:
+                encode_kwargs = {"normalize_embeddings": True}
+                self._embedding_model = HuggingFaceEmbeddings(
+                    model_name=self.model_name,
+                    encode_kwargs=encode_kwargs,
+                    model_kwargs={"device": "cpu"}
+                )
+                logger.info("Embedding model loaded once (singleton)")
+            except ImportError as ie:
+                logger.error(
+                    "Failed to import embedding dependencies: %s. "
+                    "Make sure `sentence-transformers` and ``huggingface-hub`` "
+                    "are installed and compatible (see README).",
+                    ie
+                )
+                raise
+        return self._embedding_model
 
 
 
@@ -401,13 +432,14 @@ def initialize_vector_store():
     """Initialize the vector store components"""
     try:
         # Setup embedding model
-        embedding_model = get_embedding_model(settings.EMBEDDING_MODEL)
+        # embedding_model = get_embedding_model(settings.EMBEDDING_MODEL)
+        _embedding_model = embedding_service.get_embedding_model()
         
         # Setup Pinecone
         pinecone_index = setup_pinecone()
         
         # Create vector store instance
-        vector_store = StoreIntoVectorDatabase(pinecone_index, embedding_model)
+        vector_store = StoreIntoVectorDatabase(pinecone_index, _embedding_model)
         
         logger.info("Vector store initialized successfully")
         return vector_store
@@ -415,3 +447,6 @@ def initialize_vector_store():
     except Exception as e:
         logger.error(f"Failed to initialize vector store: {str(e)}")
         raise
+
+
+embedding_service = EmbeddingService(model_name=settings.EMBEDDING_MODEL)

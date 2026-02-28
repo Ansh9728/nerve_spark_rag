@@ -37,12 +37,17 @@ is_windows() {
     [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "win32" ]] || [[ "$OSTYPE" == "cygwin" ]]
 }
 
-# Function to get Python command
+# Function to get Python command (prefer explicit python3.11)
 get_python_cmd() {
     if is_windows; then
         echo "python"
     else
-        echo "python3"
+        # prefer python3.11 if available, otherwise fall back to python3
+        if command -v python3.11 &> /dev/null; then
+            echo "python3.11"
+        else
+            echo "python3"
+        fi
     fi
 }
 
@@ -90,6 +95,14 @@ main() {
     
     PYTHON_VERSION=$($PYTHON_CMD -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
     print_status "Python version: $PYTHON_VERSION"
+
+    # verify minimum version (>=3.11)
+    PY_MAJOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info[0])')
+    PY_MINOR=$($PYTHON_CMD -c 'import sys; print(sys.version_info[1])')
+    if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 11 ]; }; then
+        print_error "Python 3.11 or higher is required. Found $PYTHON_VERSION."
+        exit 1
+    fi
     
     # Step 5: Create virtual environment
     print_step "Setting up virtual environment..."
@@ -105,6 +118,12 @@ main() {
     activate_venv
     pip install --upgrade pip
     pip install -r requirements.txt
+
+    # sanity check: sentence-transformers import
+    if ! $PYTHON_CMD -c "import sentence_transformers" &> /dev/null; then
+        print_warning "sentence-transformers failed to import; reinstalling specific version"
+        pip install --upgrade "sentence-transformers>=5.2.3"
+    fi
     
     # Step 7: Check for .env file
     print_step "Checking environment configuration..."
